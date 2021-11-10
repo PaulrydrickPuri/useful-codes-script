@@ -1,0 +1,142 @@
+import boto3
+from botocore.retries import bucket
+from tqdm import tqdm
+
+client = boto3.client("s3", region_name="ap-southeast-1")
+
+'''
+STEPS TO USE IT
+
+1) Put the targeted bucket name to 'bucket_name' variable
+2) Put the folder path to 'prefix' variable (eg. TMA-1939-fully-labeled-lp/nighttime/TMA-1930/245-M01/10.0.5.31_2021-09-10_8PM-12AM/)
+3) Run the script and check if the files are renamed
+'''
+
+
+bucket_name = "plus-vehicle-labelled-dataset-v5"
+prefix = "v5.1/ALS/Night/K08/"
+
+# new_color_id = {
+# 	"0" : "0", # black
+# 	"1" : "1", # white
+# 	"2" : "1", # silver -> white
+# 	"3" : "2", # blue
+# 	"4" : "3", # red
+# 	"5" : "4", # brown
+# 	"6" : "6", # gold -> yellow
+# 	"7" : "5", # orange
+# 	"8" : "6", # yellow
+# 	"9" : "7", # green
+# 	"10" : "8", # gray
+# 	"11" : "9" # purple
+# }
+
+# new_truck_color_id = {
+# 	"0" : "10", # black
+# 	"1" : "11", # white
+# 	"2" : "11", # silver -> white
+# 	"3" : "12", # blue
+# 	"4" : "13", # red
+# 	"5" : "14", # brown
+# 	"6" : "16", # gold -> yellow
+# 	"7" : "15", # orange
+# 	"8" : "16", # yellow
+# 	"9" : "17", # green
+# 	"10" : "18", # gray
+# 	"11" : "19" # purple
+# }
+
+def get_response(bucket_name,prefix):
+	''' To get response from s3 bucket '''
+	response = client.list_objects(
+    Bucket= bucket_name,
+	Prefix= prefix
+	)
+
+	return response
+
+def get_key_list(contents):
+	''' Create a list containing all image's keys'''
+	key_list = []
+	for i in range(1,len(contents)):
+		key_list.append(contents[i]['Key'])
+	
+	return key_list
+
+def truck_is_exist(seperated_image_name):
+	''' To check if the image is a truck image '''
+	if("truck" in seperated_image_name):
+		return True
+
+	return False
+
+def change_truck_color_id(color_id,new_truck_color_id):
+	color_id = str(color_id)
+	return new_truck_color_id[color_id]
+
+def change_color_id(color_id,new_color_id):
+	color_id = str(color_id)
+	return new_color_id[color_id]
+
+def create_new_name(seperated_image_name):
+	new_name = ""
+	for i in range(len(seperated_image_name)):
+		if(i == len(seperated_image_name)-1):
+			new_name = new_name + seperated_image_name[i]
+		else:
+			new_name = new_name + seperated_image_name[i] + "_"
+
+	return new_name
+
+def rename_file(bucket_name, old_key, new_key):
+	copy_source = {'Bucket': bucket_name, 'Key': old_key}
+	client.copy_object(CopySource = copy_source, Bucket = bucket_name, Key = new_key)
+	client.delete_object(Bucket = bucket_name, Key = old_key)
+
+
+# response = client.get_public_access_block(
+#     Bucket=bucket_name
+# )
+
+# print(type(response["PublicAccessBlockConfiguration"]))
+
+
+response = get_response(bucket_name= bucket_name, prefix=prefix)
+
+contents = response['Contents']
+
+key_list = get_key_list(contents= contents)
+
+
+# print(response)
+
+
+# print(key_list)
+
+for i in tqdm(range(len(key_list))):
+	key = key_list[i]
+	seperated_key = key.split("/")
+	image_name = seperated_key[-1]
+	seperated_image_name = image_name.split("_")
+
+	if(seperated_image_name[2] == "truck" and seperated_image_name[3] == "%3E2axles"):
+		seperated_image_name[3] = ">2axles"
+
+		new_image_name = create_new_name(seperated_image_name)
+		new_key = prefix + new_image_name
+
+		rename_file(bucket_name, key, new_key)
+
+	# color_id = seperated_image_name[-2] # the color id fix 2 from behind
+	# print(type(color_id))
+
+	# if(truck_is_exist(seperated_image_name)):
+	# 	#color for truck
+	# 	seperated_image_name[-2] = change_truck_color_id(color_id,new_truck_color_id)
+	# else:
+	# 	if(color_id == "0" or color_id == "1" or color_id == "6"):
+	# 		continue 
+	# 	#color for other than truck
+	# 	seperated_image_name[-2] = change_color_id(color_id,new_color_id)
+
+print(prefix, " Done !")
