@@ -140,3 +140,5 @@ for i in tqdm(range(len(key_list))):
 	# 	seperated_image_name[-2] = change_color_id(color_id,new_color_id)
 
 print(prefix, " Done !")
+
+#edit in here
